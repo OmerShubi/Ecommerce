@@ -19,45 +19,45 @@ def LTM(graph: networkx.Graph, patients_0: List, iterations: int) -> Set:
         else:
             graph.nodes[node]['status'] = SUSPECTIBLE
 
-        neighbors = G.neighbors(node)
+        neighbors = graph.neighbors(node)
         num_neighbors = 0
         for _ in neighbors:
             num_neighbors += 1
-        G.nodes[node]['num_neighbors'] = num_neighbors
-        G.nodes[node]['concern'] = 0
+        graph.nodes[node]['num_neighbors'] = num_neighbors
+        graph.nodes[node]['concern'] = 0
 
     for _ in range(1, iterations + 1):
         to_be_infected = []
-        for node in G.nodes():
-            neighbors = G.neighbors(node)
+        for node in graph.nodes():
+            neighbors = graph.neighbors(node)
             node_threshold = 0
             num_infected_neighbors = 0
             for neighbor_id in neighbors:
-                if G.nodes[neighbor_id]['status'] == INFECTED:
+                if graph.nodes[neighbor_id]['status'] == INFECTED:
                     num_infected_neighbors += 1
-                    node_threshold += G.get_edge_data(node, neighbor_id)['weight']
-            if G.nodes[node]['status'] == SUSPECTIBLE and (CONTAGION * node_threshold >= 1 + G.nodes[node]['concern']):
+                    node_threshold += graph.get_edge_data(node, neighbor_id)['weight']
+            if graph.nodes[node]['status'] == SUSPECTIBLE and (CONTAGION * node_threshold >= 1 + graph.nodes[node]['concern']):
                 to_be_infected.append(node)
-            G.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
+            graph.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
 
-        for node in G.nodes():
+        for node in graph.nodes():
             if node in to_be_infected:
-                G.nodes[node]['status'] = INFECTED
+                graph.nodes[node]['status'] = INFECTED
 
-        for node in G.nodes():
-            if G.nodes[node]['num_neighbors'] > 0:
-                concern = G.nodes[node]['num_infected_neighbors'] / G.nodes[node]['num_neighbors']
+        for node in graph.nodes():
+            if graph.nodes[node]['num_neighbors'] > 0:
+                concern = graph.nodes[node]['num_infected_neighbors'] / graph.nodes[node]['num_neighbors']
             else:
                 concern = 0
-            G.nodes[node]['concern'] = concern
+            graph.nodes[node]['concern'] = concern
 
-    total_infected = [n for n in G.nodes() if G.nodes[n]['status'] == INFECTED]
+    total_infected = [n for n in graph.nodes() if graph.nodes[n]['status'] == INFECTED]
     return set(total_infected)
 
 
 def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
     # Initialization
-    for node in graph.nodes:
+    for node in graph.nodes():
         # Update infected status for patients0
         if node in patients_0:
             # Remove patients based on lethality
@@ -77,59 +77,64 @@ def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
         except:
             print(1)
         # Count number of neighbors for each node
-        neighbors = G.neighbors(node)
+        neighbors = graph.neighbors(node)
         num_neighbors = 0
         for _ in neighbors:
             num_neighbors += 1
-        G.nodes[node]['num_neighbors'] = num_neighbors
-        G.nodes[node]['concern'] = 0
+        graph.nodes[node]['num_neighbors'] = num_neighbors
+        graph.nodes[node]['concern'] = 0
 
     for _ in range(1, iterations + 1):
         to_be_infected = []
-        for node in G.nodes():
-            neighbors = G.neighbors(node)
+        to_be_removed = []
+        for node in graph.nodes():
             num_infected_neighbors = 0
             num_removed_neighbors = 0
             try:
-                for neighbor_id in neighbors:
-                    if G.nodes[neighbor_id]['status'] == INFECTED:
-                        num_infected_neighbors += 1
-                    elif G.nodes[neighbor_id]['status'] == REMOVED:
-                        num_removed_neighbors += 1
-
-                    if G.nodes[neighbor_id]['NI'] and G.nodes[node]['status'] == SUSPECTIBLE:
-                        infect_prob = CONTAGION * G.get_edge_data(node, neighbor_id)['weight'] * (
-                                1 - G.nodes[node]['concern'])
+                for neighbor_id in graph.neighbors(node):
+                    try:
+                        if graph.nodes[neighbor_id]['status'] == INFECTED:
+                            num_infected_neighbors += 1
+                        elif graph.nodes[neighbor_id]['status'] == REMOVED:
+                            num_removed_neighbors += 1
+                    except Exception:
+                        print(1)
+                    if graph.nodes[neighbor_id]['NI'] and (graph.nodes[node]['status'] == SUSPECTIBLE):
+                        infect_prob = CONTAGION * graph.get_edge_data(node, neighbor_id)['weight'] * (
+                                1 - graph.nodes[node]['concern'])
                         infect_prob = min(1, infect_prob)
                         if np.random.binomial(1, infect_prob):
                             if np.random.binomial(1, LETHALITY):
-                                G.nodes[node]['status'] = REMOVED
+                                to_be_removed.append(node)
                             else:
                                 to_be_infected.append(node)
-            except:
-                print(1)
+            except Exception as e:
+                print(e)
 
-            G.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
-            G.nodes[node]['num_removed_neighbors'] = num_removed_neighbors
+            graph.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
+            graph.nodes[node]['num_removed_neighbors'] = num_removed_neighbors
 
-        for node in G.nodes():
+        for node in graph.nodes():
             if node in to_be_infected:
-                G.nodes[node]['status'] = INFECTED
-                G.nodes[node]['NI'] = True
+                graph.nodes[node]['status'] = INFECTED
+                graph.nodes[node]['NI'] = True
+            elif node in to_be_removed:
+                graph.nodes[node]['status'] = REMOVED
+                graph.nodes[node]['NI'] = False
             else:
-                G.nodes[node]['NI'] = False
+                graph.nodes[node]['NI'] = False
 
-        for node in G.nodes():
-            if G.nodes[node]['num_neighbors'] > 0:
-                concern = (G.nodes[node]['num_infected_neighbors'] + 3 * G.nodes[node]['num_removed_neighbors']) \
-                          / G.nodes[node]['num_neighbors']
+        for node in graph.nodes():
+            if graph.nodes[node]['num_neighbors'] > 0:
+                concern = (graph.nodes[node]['num_infected_neighbors'] + 3 * graph.nodes[node]['num_removed_neighbors']) \
+                          / graph.nodes[node]['num_neighbors']
                 concern = min(concern, 1)
             else:
                 concern = 0
-            G.nodes[node]['concern'] = concern
+            graph.nodes[node]['concern'] = concern
 
-    total_infected = [n for n in G.nodes() if G.nodes[n]['status'] == INFECTED]
-    total_deceased = [n for n in G.nodes() if G.nodes[n]['status'] == REMOVED]
+    total_infected = [n for n in graph.nodes() if graph.nodes[n]['status'] == INFECTED]
+    total_deceased = [n for n in graph.nodes() if graph.nodes[n]['status'] == REMOVED]
 
     return set(total_infected), set(total_deceased)
 
@@ -245,15 +250,15 @@ if __name__ == "__main__":
     if PART_B:
         patients0 = pd.read_csv("patients0.csv", header=None)
         G = build_graph(filename="PartB-C.csv")
-        # infected = LTM(graph=G, patients_0=patients0[:20].values, iterations=6)
-        # print(len(infected))
-        # i = 0
-        # r = 0
-        # for _ in range(30):
-        #     infected, removed = ICM(graph=G, patients_0=patients0[:20].values, iterations=4)
-        #     i += len(infected)
-        #     r += len(removed)
-        # print(i / 30, r / 30)
+        infected = LTM(graph=G, patients_0=patients0[:20].values, iterations=6)
+        print(len(infected))
+        i = 0
+        r = 0
+        for _ in range(2):
+            infected, removed = ICM(graph=G, patients_0=patients0[:20].values, iterations=4)
+            i += len(infected)
+            r += len(removed)
+        print(i / 2, r / 2)
 
-        mean_deaths, mean_infected = compute_lethality_effect(G, 6)
-        plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
+        # mean_deaths, mean_infected = compute_lethality_effect(G, 6)
+        # plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
