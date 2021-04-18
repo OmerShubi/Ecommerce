@@ -76,12 +76,14 @@ def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
         else:
             graph.nodes[node]['NI'] = False
             graph.nodes[node]['status'] = SUSPECTIBLE
+
         # Count number of neighbors for each node
         neighbors = graph.neighbors(node)
         num_neighbors = 0
         for _ in neighbors:
             num_neighbors += 1
         graph.nodes[node]['num_neighbors'] = num_neighbors
+        # Initialize concern with 0
         graph.nodes[node]['concern'] = 0
 
     for _ in range(1, iterations + 1):
@@ -90,14 +92,14 @@ def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
         for node in graph.nodes():
             num_infected_neighbors = 0
             num_removed_neighbors = 0
-            for neighbor_id in graph.neighbors(node):
-                if graph.nodes[neighbor_id]['status'] == INFECTED:
+            for neighbor in graph.neighbors(node):
+                if graph.nodes[neighbor]['status'] == INFECTED:
                     num_infected_neighbors += 1
-                elif graph.nodes[neighbor_id]['status'] == REMOVED:
+                elif graph.nodes[neighbor]['status'] == REMOVED:
                     num_removed_neighbors += 1
 
-                if graph.nodes[neighbor_id]['NI'] and (graph.nodes[node]['status'] == SUSPECTIBLE):
-                    infect_prob = CONTAGION * graph.get_edge_data(node, neighbor_id)['weight'] * (
+                if graph.nodes[neighbor]['NI'] and (graph.nodes[node]['status'] == SUSPECTIBLE):
+                    infect_prob = CONTAGION * graph.get_edge_data(neighbor, node)['weight'] * (
                             1 - graph.nodes[node]['concern'])
                     infect_prob = min(1, infect_prob)
                     if np.random.binomial(1, infect_prob):
@@ -270,9 +272,9 @@ if __name__ == "__main__":
         print(f"LTM num infected - {len(infected)}")
         i = 0
         r = 0
-        trials = 30
-        num_patients0 = 20
-        iterations = 4
+        trials = 4
+        num_patients0 = 50
+        iterations = 6
         for _ in range(trials):
             infected, removed = ICM(graph=copy.deepcopy(G), patients_0=patients0[:num_patients0].values, iterations=iterations)
             i += len(infected)
