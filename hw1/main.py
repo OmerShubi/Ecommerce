@@ -136,10 +136,10 @@ def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
     return set(total_infected), set(total_deceased)
 
 
-def plot_degree_histogram(histogram: Dict):
+def plot_degree_histogram(histogram: Dict, filename):
     plt.bar(histogram.keys(), histogram.values(), width=0.80, color="b")
 
-    plt.title("Degree Histogram")
+    plt.title(f"Degree Histogram - {filename}")
     plt.ylabel("Count")
     plt.xlabel("Degree")
     plt.show()
@@ -156,14 +156,14 @@ def calc_degree_histogram(graph: networkx.Graph) -> Dict:
 
 
 def build_graph(filename: str) -> networkx.Graph:
-    G = networkx.Graph()
+    graph = networkx.Graph()
     df = pd.read_csv(filename)
-    G.add_nodes_from(np.unique(df.loc[:, ['from', 'to']].values))
+    graph.add_nodes_from(np.unique(df.loc[:, ['from', 'to']].values))
     if 'w' in df.columns:
-        G.add_weighted_edges_from(df.loc[:, ['from', 'to', 'w']].values)
+        graph.add_weighted_edges_from(df.loc[:, ['from', 'to', 'w']].values)
     else:
-        G.add_edges_from(df.loc[:, ['from', 'to']].values)
-    return G
+        graph.add_edges_from(df.loc[:, ['from', 'to']].values)
+    return graph
 
 
 def combinations(n, r):
@@ -184,7 +184,7 @@ def clustering_coefficient(graph: networkx.Graph) -> float:
 
     triads = 0
     for node in graph.nodes():
-        n = len(G[node])
+        n = len(graph[node])
         if n >= 2:
             triads += combinations(n, 2)
     cc = 3 * triangles / triads
@@ -203,9 +203,9 @@ def compute_lethality_effect(graph: networkx.Graph, t: int) -> [Dict, Dict]:
         for iteration in range(30):
             startTime = time.time()
 
-            G = copy.deepcopy(graph)
-            patients_0 = np.random.choice(list(G.nodes), size=50, replace=False, p=None)
-            infected, removed = ICM(graph=G, patients_0=patients_0, iterations=t)
+            graph_copy = copy.deepcopy(graph)
+            patients_0 = np.random.choice(list(graph_copy.nodes), size=50, replace=False, p=None)
+            infected, removed = ICM(graph=graph_copy, patients_0=patients_0, iterations=t)
             mean_infected[l] += len(infected)
             mean_deaths[l] += len(removed)
             executionTime = (time.time() - startTime)
@@ -254,21 +254,21 @@ if __name__ == "__main__":
     # G = build_graph(filename=filename)
     # nx.draw(G, with_labels=True, font_weight='bold')
     # plt.show()
-    PART_A = False
+    PART_A = True
     if PART_A:
-        filenames = ["PartA1.csv", "PartA2.csv"]
+        filenames = ["PartA1.csv", "PartA2.csv", "PartB-C.csv"]
         for filename in filenames:
-            G = build_graph(filename=filename)
-            G_hist = calc_degree_histogram(G)
-            plot_degree_histogram(G_hist)
-            cc = clustering_coefficient(G)
+            graph = build_graph(filename=filename)
+            G_hist = calc_degree_histogram(graph)
+            plot_degree_histogram(G_hist, filename)
+            cc = clustering_coefficient(graph)
             print(f"{filename} - {cc}")
 
     PART_B = True
     if PART_B:
         patients0 = pd.read_csv("patients0.csv", header=None)
-        G = build_graph(filename="PartB-C.csv")
-        infected = LTM(graph=copy.deepcopy(G), patients_0=patients0[:20].values, iterations=6)
+        graph = build_graph(filename="PartB-C.csv")
+        infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:20].values, iterations=6)
         print(f"LTM num infected - {len(infected)}")
         i = 0
         r = 0
@@ -276,10 +276,10 @@ if __name__ == "__main__":
         num_patients0 = 50
         iterations = 6
         for _ in range(trials):
-            infected, removed = ICM(graph=copy.deepcopy(G), patients_0=patients0[:num_patients0].values, iterations=iterations)
+            infected, removed = ICM(graph=copy.deepcopy(graph), patients_0=patients0[:num_patients0].values, iterations=iterations)
             i += len(infected)
             r += len(removed)
         print(f"ICM patients0-{num_patients0} iterations-{iterations}, mean infected - {i / trials}, mean removed - {r / trials}")
 
-        # mean_deaths, mean_infected = compute_lethality_effect(graph=copy.deepcopy(G), t=6)
+        # mean_deaths, mean_infected = compute_lethality_effect(graph=copy.deepcopy(graph), t=6)
         # plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
