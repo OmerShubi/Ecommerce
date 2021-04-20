@@ -61,6 +61,8 @@ def LTM(graph: networkx.Graph, patients_0: List, iterations: int) -> Set:
 
 
 def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
+    startTime = time.time()
+
     # Initialization
     for node in graph.nodes():
         # Update infected status for patients0
@@ -90,56 +92,62 @@ def ICM(graph: networkx.Graph, patients_0: List, iterations: int) -> [Set, Set]:
         to_be_infected = []
         to_be_removed = []
         for node in graph.nodes():
-            num_infected_neighbors = 0
-            num_removed_neighbors = 0
-            for neighbor in graph.neighbors(node):
-                if graph.nodes[neighbor]['status'] == INFECTED:
-                    num_infected_neighbors += 1
-                elif graph.nodes[neighbor]['status'] == REMOVED:
-                    num_removed_neighbors += 1
+            if graph.nodes[node]['status'] == SUSPECTIBLE:
+                num_infected_neighbors = 0
+                num_removed_neighbors = 0
+                for neighbor in graph.neighbors(node):
+                    if graph.nodes[neighbor]['status'] == INFECTED:
+                        num_infected_neighbors += 1
+                    elif graph.nodes[neighbor]['status'] == REMOVED:
+                        num_removed_neighbors += 1
 
-                if graph.nodes[neighbor]['NI'] and (graph.nodes[node]['status'] == SUSPECTIBLE):
-                    infect_prob = CONTAGION * graph.get_edge_data(neighbor, node)['weight'] * (
-                            1 - graph.nodes[node]['concern'])
-                    infect_prob = min(1, infect_prob)
-                    if np.random.binomial(1, infect_prob):
-                        if np.random.binomial(1, LETHALITY):
-                            to_be_removed.append(node)
-                        else:
-                            to_be_infected.append(node)
+                    if graph.nodes[neighbor]['NI'] and graph.nodes[neighbor]['status'] == INFECTED:
+                        infect_prob = CONTAGION * graph.get_edge_data(neighbor, node)['weight'] * (
+                                1 - graph.nodes[node]['concern'])
+                        infect_prob = min(1, infect_prob)
+                        if np.random.binomial(1, infect_prob):
+                            if np.random.binomial(1, LETHALITY):
+                                to_be_removed.append(node)
+                            else:
+                                to_be_infected.append(node)
+                            break
 
-            graph.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
-            graph.nodes[node]['num_removed_neighbors'] = num_removed_neighbors
+                graph.nodes[node]['num_infected_neighbors'] = num_infected_neighbors
+                graph.nodes[node]['num_removed_neighbors'] = num_removed_neighbors
 
         for node in graph.nodes():
-            if node in to_be_infected:
+            if node in set(to_be_infected):
                 graph.nodes[node]['status'] = INFECTED
                 graph.nodes[node]['NI'] = True
-            elif node in to_be_removed:
+            elif node in set(to_be_removed):
                 graph.nodes[node]['status'] = REMOVED
                 graph.nodes[node]['NI'] = False
             else:
                 graph.nodes[node]['NI'] = False
 
         for node in graph.nodes():
-            if graph.nodes[node]['num_neighbors'] > 0:
-                concern = (graph.nodes[node]['num_infected_neighbors'] + 3 * graph.nodes[node]['num_removed_neighbors']) \
-                          / graph.nodes[node]['num_neighbors']
-                concern = min(concern, 1)
-            else:
-                concern = 0
-            graph.nodes[node]['concern'] = concern
+            if graph.nodes[node]['status'] == SUSPECTIBLE:
+                if graph.nodes[node]['num_neighbors'] > 0:
+                    concern = (graph.nodes[node]['num_infected_neighbors'] + 3 * graph.nodes[node]['num_removed_neighbors']) \
+                              / graph.nodes[node]['num_neighbors']
+                    concern = min(concern, 1)
+                else:
+                    concern = 0
+                graph.nodes[node]['concern'] = concern
 
     total_infected = [n for n in graph.nodes() if graph.nodes[n]['status'] == INFECTED]
     total_deceased = [n for n in graph.nodes() if graph.nodes[n]['status'] == REMOVED]
 
+    executionTime = (time.time() - startTime)
+    print(f"ICM took {executionTime}")
+
     return set(total_infected), set(total_deceased)
 
 
-def plot_degree_histogram(histogram: Dict, filename):
+def plot_degree_histogram(histogram: Dict):
     plt.bar(histogram.keys(), histogram.values(), width=0.80, color="b")
 
-    plt.title(f"Degree Histogram - {filename}")
+    plt.title("Degree Histogram")
     plt.ylabel("Count")
     plt.xlabel("Degree")
     plt.show()
@@ -201,19 +209,17 @@ def compute_lethality_effect(graph: networkx.Graph, t: int) -> [Dict, Dict]:
         mean_infected[l] = 0
         mean_deaths[l] = 0
         for iteration in range(30):
-            startTime = time.time()
 
             graph_copy = copy.deepcopy(graph)
             patients_0 = np.random.choice(list(graph_copy.nodes), size=50, replace=False, p=None)
             infected, removed = ICM(graph=graph_copy, patients_0=patients_0, iterations=t)
             mean_infected[l] += len(infected)
             mean_deaths[l] += len(removed)
-            executionTime = (time.time() - startTime)
-            print(f"l-{l}, iteration-{iteration} took {executionTime}")
+            print(f"l-{l}, iteration-{iteration}")
         mean_infected[l] /= 30
         mean_deaths[l] /= 30
 
-    return mean_deaths, mean_infected
+    return mean_infected, mean_deaths
 
 
 def plot_lethality_effect(mean_deaths: Dict, mean_infected: Dict):
@@ -248,19 +254,32 @@ def choose_who_to_vaccinate_example(graph: networkx.Graph) -> List:
 CONTAGION = 0.8
 LETHALITY = .2
 
+def run_ICM(graph):
+    i = 0
+    r = 0
+    trials = 3
+    num_patients0 = 50
+    iterations = 6
+    for _ in range(trials):
+        infected, removed = ICM(graph=copy.deepcopy(graph), patients_0=patients0[:num_patients0].values, iterations=iterations)
+        i += len(infected)
+        r += len(removed)
+    print(f"ICM patients0-{num_patients0} iterations-{iterations}, mean infected - {i / trials}, mean removed - {r / trials}")
+
+
 if __name__ == "__main__":
     # sample = "sample.csv"
     # plt.subplot(121)
     # G = build_graph(filename=filename)
     # nx.draw(G, with_labels=True, font_weight='bold')
     # plt.show()
-    PART_A = True
+    PART_A = False
     if PART_A:
         filenames = ["PartA1.csv", "PartA2.csv", "PartB-C.csv"]
         for filename in filenames:
             graph = build_graph(filename=filename)
             G_hist = calc_degree_histogram(graph)
-            plot_degree_histogram(G_hist, filename)
+            plot_degree_histogram(G_hist)
             cc = clustering_coefficient(graph)
             print(f"{filename} - {cc}")
 
@@ -268,18 +287,25 @@ if __name__ == "__main__":
     if PART_B:
         patients0 = pd.read_csv("patients0.csv", header=None)
         graph = build_graph(filename="PartB-C.csv")
-        infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:20].values, iterations=6)
-        print(f"LTM num infected - {len(infected)}")
-        i = 0
-        r = 0
-        trials = 4
-        num_patients0 = 50
-        iterations = 6
-        for _ in range(trials):
-            infected, removed = ICM(graph=copy.deepcopy(graph), patients_0=patients0[:num_patients0].values, iterations=iterations)
-            i += len(infected)
-            r += len(removed)
-        print(f"ICM patients0-{num_patients0} iterations-{iterations}, mean infected - {i / trials}, mean removed - {r / trials}")
 
-        # mean_deaths, mean_infected = compute_lethality_effect(graph=copy.deepcopy(graph), t=6)
+        # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:50].values, iterations=6)
+        # print(f"LTM num infected - {len(infected)}")
+        # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:48].values, iterations=6)
+        # print(f"LTM num infected - {len(infected)}")
+        # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:30].values, iterations=6)
+        # print(f"LTM num infected - {len(infected)}")
+        # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:20].values, iterations=6)
+        # print(f"LTM num infected - {len(infected)}")
+
+        run_ICM(graph)
+        # mean_infected, mean_deaths = compute_lethality_effect(graph=copy.deepcopy(graph), t=6)
         # plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
+
+
+        COMPETITION = False
+        if COMPETITION:
+            graph_copy = copy.deepcopy(graph)
+            to_vaccinate = choose_who_to_vaccinate_example(graph_copy)
+            graph_copy.remove_nodes_from(to_vaccinate)
+            run_ICM(graph_copy)
+
