@@ -233,10 +233,52 @@ def plot_lethality_effect(mean_deaths: Dict, mean_infected: Dict):
     plt.savefig("Infections and death vs lethality.png")
 
 
+def vac_pagerank(graph: networkx.Graph):
+    startTime = time.time()
+
+    a = nx.pagerank(graph, weight='weight')
+    executionTime = (time.time() - startTime)
+    print(f"choose who to vac_pagerank took {executionTime}")
+    return np.array(list(a.values()))
+
+
+def vac_bridges(graph: networkx.Graph):
+    startTime = time.time()
+    x = np.array(list(nx.bridges(graph)))
+    u, counts = np.unique(x.reshape((-1, 1)), return_counts=True)
+    executionTime = (time.time() - startTime)
+    print(f"choose who to vac_bridges took {executionTime}")
+    return u.astype(int), counts
+
+
+def vac_degree(graph: networkx.Graph):
+    """
+    The following heuristic for Part C is simply taking the top 50 friendly people;
+     that is, it returns the top 50 nodes in the graph with the highest degree.
+    """
+    startTime = time.time()
+
+    node2degree = dict(graph.degree)
+    d = np.array(list(node2degree.values()))
+    executionTime = (time.time() - startTime)
+    print(f"choose who to vac_degree took {executionTime}")
+    return d
+
+
 def choose_who_to_vaccinate(graph: networkx.Graph) -> List:
-    people_to_vaccinate = []
-    # TODO implement your code here
-    return people_to_vaccinate
+
+    to_vac_degree = vac_degree(graph)
+    to_vac_bridges_nodes, to_vac_bridges_vals = vac_bridges(graph)
+    to_vac_pagerank = vac_pagerank(graph)
+    to_vac_bridges = np.zeros_like(to_vac_degree)
+    to_vac_bridges[to_vac_bridges_nodes] = to_vac_bridges_nodes
+    joint = np.stack((to_vac_degree, to_vac_pagerank, to_vac_bridges))
+    joint /= joint.max(axis=1).reshape((-1, 1))
+    joint_sing_val = joint.sum(axis=0)
+    num_nodes = 50
+    people_to_vaccinate = np.argpartition(joint_sing_val, -num_nodes)[-num_nodes:]
+
+    return list(people_to_vaccinate)
 
 
 def choose_who_to_vaccinate_example(graph: networkx.Graph) -> List:
@@ -249,25 +291,11 @@ def choose_who_to_vaccinate_example(graph: networkx.Graph) -> List:
     people_to_vaccinate = [node[0] for node in sorted_nodes]
     return people_to_vaccinate
 
-
 "Global Hyper-parameters"
 CONTAGION = 0.8
-LETHALITY = .2
+LETHALITY = .15
 
-def run_ICM(graph):
-    i = 0
-    r = 0
-    trials = 3
-    num_patients0 = 50
-    iterations = 6
-    for _ in range(trials):
-        infected, removed = ICM(graph=copy.deepcopy(graph), patients_0=patients0[:num_patients0].values, iterations=iterations)
-        i += len(infected)
-        r += len(removed)
-    print(f"ICM patients0-{num_patients0} iterations-{iterations}, mean infected - {i / trials}, mean removed - {r / trials}")
-
-
-if __name__ == "__main__":
+def run_all_three_parts():
     # sample = "sample.csv"
     # plt.subplot(121)
     # G = build_graph(filename=filename)
@@ -283,13 +311,13 @@ if __name__ == "__main__":
             cc = clustering_coefficient(graph)
             print(f"{filename} - {cc}")
 
-    PART_B = True
+    PART_B = False
     if PART_B:
         patients0 = pd.read_csv("patients0.csv", header=None)
         graph = build_graph(filename="PartB-C.csv")
 
-        # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:50].values, iterations=6)
-        # print(f"LTM num infected - {len(infected)}")
+        infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:50].values, iterations=6)
+        print(f"LTM num infected - {len(infected)}")
         # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:48].values, iterations=6)
         # print(f"LTM num infected - {len(infected)}")
         # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:30].values, iterations=6)
@@ -297,15 +325,27 @@ if __name__ == "__main__":
         # infected = LTM(graph=copy.deepcopy(graph), patients_0=patients0[:20].values, iterations=6)
         # print(f"LTM num infected - {len(infected)}")
 
-        run_ICM(graph)
-        # mean_infected, mean_deaths = compute_lethality_effect(graph=copy.deepcopy(graph), t=6)
-        # plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
+        # run_ICM(graph)
+        mean_infected, mean_deaths = compute_lethality_effect(graph=copy.deepcopy(graph), t=6)
+        plot_lethality_effect(mean_deaths=mean_deaths, mean_infected=mean_infected)
 
+    COMPETITION = False
+    if COMPETITION:
+        graph = build_graph(filename="PartB-C.csv")
+        graph_vac = copy.deepcopy(graph)
+        startTime = time.time()
 
-        COMPETITION = False
-        if COMPETITION:
-            graph_copy = copy.deepcopy(graph)
-            to_vaccinate = choose_who_to_vaccinate_example(graph_copy)
-            graph_copy.remove_nodes_from(to_vaccinate)
-            run_ICM(graph_copy)
+        to_vaccinate = choose_who_to_vaccinate(graph_vac)
+        executionTime = (time.time() - startTime)
+        print(f"choose who to vac took {executionTime}")
+        graph_vac.remove_nodes_from(to_vaccinate)
+        # run_ICM(graph_copy)
+        np.random.seed(534)
+        patients_0 = np.random.choice(list(graph_vac.nodes), size=50, replace=False, p=None)
+        np.random.seed(534)
+        infected, removed = ICM(graph=copy.deepcopy(graph_vac), patients_0=patients_0, iterations=6)
+        print(f"ICM vac infected - {len(infected)},  removed - {len(removed)}")
 
+        np.random.seed(534)
+        infected, removed = ICM(graph=copy.deepcopy(graph), patients_0=patients_0, iterations=6)
+        print(f"ICM  infected - {len(infected)},  removed - {len(removed)}")
