@@ -17,6 +17,8 @@ REMOVED = 'removed'
 
 
 def LTM(graph: networkx.Graph, patients_0: List, iterations: int) -> Set:
+    global CONTAGION
+    print(CONTAGION)
     for node in graph.nodes:
         if node in patients_0:
             graph.nodes[node]['status'] = INFECTED
